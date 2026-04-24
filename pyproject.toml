@@ -1,0 +1,22 @@
+[project]
+name = "photozoom-analytics"
+version = "0.1.0"
+description = "Daily Google Sheets analytics report sender for Telegram"
+requires-python = ">=3.9"
+dependencies = [
+  "google-auth==2.39.0",
+  "gspread==6.2.0",
+  "pandas==2.2.3",
+  "python-dotenv==1.1.0",
+  "requests==2.32.3",
+]
+
+[project.scripts]
+photozoom-analytics = "photozoom_analytics.app:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

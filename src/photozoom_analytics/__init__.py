@@ -1,0 +1,2 @@
+"""PhotoZoom Analytics report automation."""
+

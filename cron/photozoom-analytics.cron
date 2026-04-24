@@ -1,0 +1,1 @@
+0 22 * * * "/Users/aduvarov/Documents/PhotoZoom Analytics/scripts/run_daily_report.sh" >> "/Users/aduvarov/Documents/PhotoZoom Analytics/report.log" 2>&1
