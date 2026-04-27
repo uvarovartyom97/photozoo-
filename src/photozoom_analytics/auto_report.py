@@ -12,6 +12,7 @@ PRODUCT_COLUMNS = [
     "Ел.Игрушка",
     "Фото 15х20",
     "Кружка",
+    "Расходник (пачка бумаги)",
     "фото за 100",
     "эл.фото",
     "Фото 10х15",
@@ -45,23 +46,12 @@ def render_auto_report(
     report_date = requested_date or _latest_report_date(df)
     lines = [
         f"*{_escape(title)}*",
-        f"Отчет за `{report_date.isoformat() if report_date else 'н/д'}`",
-        "",
+        f"*Дата:* `{_format_report_date(report_date) if report_date else 'н/д'}`",
     ]
-
-    salary = _salary_section(df, report_date)
-    if salary:
-        lines.extend(salary)
-        lines.append("")
 
     sales = _sales_section(df, report_date)
     if sales:
         lines.extend(sales)
-        lines.append("")
-
-    extra_sales = _extra_sales_section(df)
-    if extra_sales:
-        lines.extend(extra_sales)
 
     return "\n".join(lines).strip()
 
@@ -102,38 +92,43 @@ def _sales_section(df: pd.DataFrame, report_date: date | None) -> list[str]:
     sheet["_date"] = _parse_dates(sheet["column_1"])
     current = sheet[sheet["_date"] == report_date]
     if current.empty:
-        return ["*Продажи по товарам*", "- За выбранную дату строк нет."]
+        return ["", "За выбранную дату строк продаж нет."]
 
     totals = _product_totals(current)
-    total_units = sum(totals.values())
-    top = sorted(totals.items(), key=lambda item: item[1], reverse=True)[:7]
+    unit_costs = _product_unit_costs(df)
+    revenue = _daily_revenue(df, report_date)
+    product_columns = _sales_product_columns(sheet)
+    rows = []
+    for name in product_columns:
+        quantity = totals.get(name, 0.0)
+        cost = quantity * unit_costs.get(name, 0.0)
+        if quantity > 0:
+            rows.append((name, quantity, cost, _safe_percent(cost, revenue)))
+
+    total_cost = sum(row[2] for row in rows)
+    zero_count = len(product_columns) - len(rows)
 
     lines = [
-        "*Продажи по товарам*",
-        f"- Всего единиц: `{_whole(total_units)}`",
+        "",
+        f"Выручка: `{_rubles(revenue)}`",
+        f"Себестоимость: `{_rubles(total_cost)}`",
+        f"Доля от выручки: `{_percent_or_na(_safe_percent(total_cost, revenue))}`",
+        "",
+        "*Проданные позиции:*",
     ]
-    for name, value in top:
-        if value:
-            lines.append(f"- {_escape(name)}: `{_whole(value)}`")
-    return lines
-
-
-def _extra_sales_section(df: pd.DataFrame) -> list[str]:
-    sheet = df[df["worksheet"] == "таблица продаж"].copy()
-    if sheet.empty:
-        return []
-
-    totals = _product_totals(sheet)
-    total_units = sum(totals.values())
-    top = sorted(totals.items(), key=lambda item: item[1], reverse=True)[:7]
-
-    lines = [
-        "*Таблица продаж без дат*",
-        f"- Всего единиц: `{_whole(total_units)}`",
-    ]
-    for name, value in top:
-        if value:
-            lines.append(f"- {_escape(name)}: `{_whole(value)}`")
+    if not rows:
+        lines.append("Проданных позиций за выбранную дату нет.")
+    for index, (name, quantity, cost, revenue_pct) in enumerate(rows, start=1):
+        lines.extend(
+            [
+                f"{index}. *{_escape(name)}*",
+                f"   Кол-во: `{_whole(quantity)}`",
+                f"   Себестоимость: `{_rubles(cost)}`",
+                f"   Доля выручки: `{_percent_or_na(revenue_pct)}`",
+                "",
+            ]
+        )
+    lines.append(f"Позиций без продаж: `{zero_count}`")
     return lines
 
 
@@ -200,10 +195,55 @@ def _product_totals(df: pd.DataFrame) -> dict[str, float]:
     return totals
 
 
+def _sales_product_columns(sheet: pd.DataFrame) -> list[str]:
+    return [column for column in sheet.columns if column in PRODUCT_COLUMNS]
+
+
+def _product_unit_costs(df: pd.DataFrame) -> dict[str, float]:
+    sheet = df[df["worksheet"] == "таблица продаж"].copy()
+    if sheet.empty:
+        return {}
+
+    product_columns = [column for column in PRODUCT_COLUMNS if column in sheet]
+    numeric_rows = []
+    for _, row in sheet.iterrows():
+        values = {column: _parse_number(row.get(column, 0)) for column in product_columns}
+        if sum(1 for value in values.values() if value > 0) >= 2:
+            numeric_rows.append(values)
+
+    if len(numeric_rows) < 2:
+        return {}
+
+    quantities = numeric_rows[-2]
+    costs = numeric_rows[-1]
+    unit_costs = {}
+    for column in product_columns:
+        quantity = quantities.get(column, 0)
+        cost = costs.get(column, 0)
+        if quantity > 0 and cost > 0:
+            unit_costs[column] = cost / quantity
+    return unit_costs
+
+
+def _daily_revenue(df: pd.DataFrame, report_date: date) -> float:
+    salary = df[df["worksheet"] == "ЗП"].copy()
+    if salary.empty or "Дата" not in salary:
+        return 0.0
+
+    salary["_date"] = _parse_dates(salary["Дата"])
+    return _sum(salary[salary["_date"] == report_date], "Касса")
+
+
 def _sum(df: pd.DataFrame, column: str) -> float:
     if column not in df:
         return 0.0
     return float(df[column].apply(_parse_number).sum())
+
+
+def _safe_percent(value: float, total: float) -> float | None:
+    if total == 0:
+        return None
+    return value / total * 100
 
 
 def _parse_number(value: object) -> float:
@@ -228,6 +268,20 @@ def _money(value: float) -> str:
 
 def _whole(value: float) -> str:
     return f"{value:,.0f}".replace(",", " ")
+
+
+def _rubles(value: float) -> str:
+    return f"{_whole(value)}руб."
+
+
+def _percent_or_na(value: float | None) -> str:
+    if value is None:
+        return "н/д"
+    return f"{value:.2f}%".replace(".", ",")
+
+
+def _format_report_date(value: date) -> str:
+    return value.strftime("%d.%m.%Y")
 
 
 def _escape(value: str) -> str:
