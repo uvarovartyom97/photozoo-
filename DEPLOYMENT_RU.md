@@ -1,6 +1,6 @@
 # Деплой PhotoZoom Analytics на VPS
 
-Эта инструкция описывает самый простой production-вариант: российский VPS + Ubuntu + cron. Проект не является веб-приложением, ему не нужен домен, nginx или открытый порт. Сервер должен один раз в день запускать Python-скрипт, читать Google Sheets и отправлять отчет в Telegram.
+Эта инструкция описывает самый простой production-вариант: российский VPS + Ubuntu + cron. Проект не является веб-приложением, ему не нужен домен, nginx или открытый порт. Сервер регулярно запускает Python-скрипт, а скрипт сам проверяет расписание торговых точек, читает Google Sheets и отправляет нужные отчеты в Telegram.
 
 ## Выбор VPS
 
@@ -143,11 +143,15 @@ nano .env
 GOOGLE_SHEET_ID=your_google_sheet_id
 GOOGLE_WORKSHEET_NAME=*
 GOOGLE_SERVICE_ACCOUNT_FILE=/home/photozoom/apps/photozoom-analytics/service-account.json
+TRADING_POINTS_FILE=
 
 TELEGRAM_BOT_TOKEN=123456789:replace_me
 TELEGRAM_CHAT_ID=-1001234567890
 
 REPORT_TITLE=Daily PhotoZoom Analytics
+REPORT_TIMEZONE=Asia/Yekaterinburg
+REPORT_SEND_TIME=22:00
+REPORT_STATE_FILE=.photozoom-report-state.json
 DATE_COLUMN=date
 REVENUE_COLUMN=revenue
 COST_COLUMN=cost
@@ -155,6 +159,7 @@ ORDERS_COLUMN=orders
 CONVERSIONS_COLUMN=conversions
 VISITS_COLUMN=visits
 REPORT_DATE=
+FORCE_SEND=false
 DRY_RUN=false
 ```
 
@@ -214,7 +219,39 @@ PYTHONPATH=src .venv/bin/python -m photozoom_analytics
 - убедитесь, что бот добавлен в приватный канал администратором;
 - убедитесь, что `DRY_RUN=false` в `.env`.
 
-## 11. Настроить ежедневный запуск через cron
+## 11. Настроить торговые точки и расписание
+
+Если торговая точка одна, можно оставить `GOOGLE_SHEET_ID`, `GOOGLE_WORKSHEET_NAME`, `REPORT_TIMEZONE` и `REPORT_SEND_TIME` прямо в `.env`.
+
+Если точек несколько, создайте отдельный файл:
+
+```bash
+cp trading-points.example.json trading-points.json
+nano trading-points.json
+```
+
+Пример одной точки:
+
+```json
+{
+  "name": "PhotoZoom Москва",
+  "google_sheet_id": "google_sheet_id_for_moscow",
+  "google_worksheet_name": "*",
+  "report_title": "PhotoZoom Москва",
+  "timezone": "Europe/Moscow",
+  "send_time": "22:00"
+}
+```
+
+В `.env` укажите:
+
+```bash
+TRADING_POINTS_FILE=./trading-points.json
+```
+
+Для каждой точки можно задать свой `timezone` и `send_time`. Если `telegram_chat_id` не указан внутри точки, используется общий `TELEGRAM_CHAT_ID`.
+
+## 12. Настроить запуск через cron
 
 Открыть crontab:
 
@@ -222,10 +259,10 @@ PYTHONPATH=src .venv/bin/python -m photozoom_analytics
 crontab -e
 ```
 
-Добавить строку для запуска каждый день в 22:00 по времени сервера:
+Добавить строку для запуска каждые 2 часа. Скрипт сам проверит локальное время каждой торговой точки и не отправит дубль за одну локальную дату:
 
 ```cron
-0 22 * * * cd /home/photozoom/apps/photozoom-analytics && PYTHONPATH=src .venv/bin/python -m photozoom_analytics >> /home/photozoom/apps/photozoom-analytics/report.log 2>&1
+0 */2 * * * cd /home/photozoom/apps/photozoom-analytics && PYTHONPATH=src .venv/bin/python -m photozoom_analytics >> /home/photozoom/apps/photozoom-analytics/report.log 2>&1
 ```
 
 Проверить список задач:
@@ -234,13 +271,13 @@ crontab -e
 crontab -l
 ```
 
-Если нужно запускать в 09:00:
+Состояние отправок хранится в `.photozoom-report-state.json`. Для ручной проверки без учета расписания можно использовать:
 
-```cron
-0 9 * * * cd /home/photozoom/apps/photozoom-analytics && PYTHONPATH=src .venv/bin/python -m photozoom_analytics >> /home/photozoom/apps/photozoom-analytics/report.log 2>&1
+```bash
+FORCE_SEND=true PYTHONPATH=src .venv/bin/python -m photozoom_analytics
 ```
 
-## 12. Проверить логи
+## 13. Проверить логи
 
 После первого запуска:
 
@@ -255,7 +292,7 @@ tail -100 report.log
 tail -f report.log
 ```
 
-## 13. Как обновлять проект на сервере
+## 14. Как обновлять проект на сервере
 
 Если проект загружен через Git:
 
@@ -271,7 +308,7 @@ git pull
 PYTHONPATH=src .venv/bin/python -m photozoom_analytics
 ```
 
-## 14. Минимальная безопасность
+## 15. Минимальная безопасность
 
 Сделайте хотя бы это:
 
@@ -290,7 +327,7 @@ sudo apt update
 sudo apt upgrade -y
 ```
 
-## 15. Финальный чек-лист
+## 16. Финальный чек-лист
 
 - VPS создан.
 - Ubuntu 24.04 установлена.
@@ -299,10 +336,10 @@ sudo apt upgrade -y
 - `.venv` создан.
 - Зависимости установлены.
 - `.env` заполнен.
+- `trading-points.json` создан, если торговых точек несколько.
 - `service-account.json` загружен.
 - Google Sheet расшарен на сервисный аккаунт.
 - Бот добавлен администратором в Telegram-канал.
 - Ручной запуск работает.
 - Cron-задача добавлена.
 - `report.log` создается и обновляется.
-

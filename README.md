@@ -46,10 +46,12 @@ Fill in `.env`:
 
 ```bash
 GOOGLE_SHEET_ID=...
-GOOGLE_WORKSHEET_NAME=Sheet1
+GOOGLE_WORKSHEET_NAME=*
 GOOGLE_SERVICE_ACCOUNT_FILE=./service-account.json
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_CHAT_ID=-100...
+REPORT_TIMEZONE=Asia/Yekaterinburg
+REPORT_SEND_TIME=22:00
 ```
 
 For a safe preview without Telegram delivery, set:
@@ -91,12 +93,49 @@ To build a report for a specific date:
 REPORT_DATE=2026-04-22 PYTHONPATH=src python -m photozoom_analytics
 ```
 
-## Daily Cron Example
+To force delivery for all configured trading points regardless of schedule:
 
-This example runs the report every day at 09:00 server time:
+```bash
+FORCE_SEND=true PYTHONPATH=src python -m photozoom_analytics
+```
+
+## Multiple Trading Points
+
+Each trading point can read its own Google Sheet and use its own local delivery schedule. Copy the example config:
+
+```bash
+cp trading-points.example.json trading-points.json
+```
+
+Set the file in `.env`:
+
+```bash
+TRADING_POINTS_FILE=./trading-points.json
+```
+
+Example point:
+
+```json
+{
+  "name": "PhotoZoom Москва",
+  "google_sheet_id": "google_sheet_id_for_moscow",
+  "google_worksheet_name": "*",
+  "report_title": "PhotoZoom Москва",
+  "timezone": "Europe/Moscow",
+  "send_time": "22:00"
+}
+```
+
+Optional `telegram_chat_id` can be set per point. If it is omitted, the global `TELEGRAM_CHAT_ID` is used.
+
+The app stores successful scheduled sends in `.photozoom-report-state.json`, so repeated cron runs will not send duplicates for the same local date.
+
+## Cron Example
+
+For multiple time zones, run the app every 2 hours and let it decide which trading points are due:
 
 ```cron
-0 9 * * * cd "/Users/aduvarov/Documents/PhotoZoom Analytics" && PYTHONPATH=src .venv/bin/python -m photozoom_analytics >> report.log 2>&1
+0 */2 * * * cd "/Users/aduvarov/Documents/PhotoZoom Analytics" && PYTHONPATH=src .venv/bin/python -m photozoom_analytics >> report.log 2>&1
 ```
 
 Alternatively, install the package in editable mode with `pip install -e .` and run `.venv/bin/photozoom-analytics`.

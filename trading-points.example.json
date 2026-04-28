@@ -1,0 +1,19 @@
+[
+  {
+    "name": "PhotoZoom Екатеринбург",
+    "google_sheet_id": "google_sheet_id_for_ekaterinburg",
+    "google_worksheet_name": "*",
+    "report_title": "PhotoZoom Екатеринбург",
+    "timezone": "Asia/Yekaterinburg",
+    "send_time": "22:00"
+  },
+  {
+    "name": "PhotoZoom Москва",
+    "google_sheet_id": "google_sheet_id_for_moscow",
+    "google_worksheet_name": "*",
+    "report_title": "PhotoZoom Москва",
+    "timezone": "Europe/Moscow",
+    "send_time": "22:00",
+    "telegram_chat_id": "-1001234567890"
+  }
+]

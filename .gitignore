@@ -4,5 +4,7 @@ __pycache__/
 .venv/
 venv/
 service-account.json
+trading-points.json
 *.log
+.photozoom-report-state.json
 .DS_Store
