@@ -118,7 +118,7 @@ def _load_trading_points(default_chat_id: str) -> tuple[TradingPoint, ...]:
             name=os.getenv("TRADING_POINT_NAME", "Default"),
             google_sheet_id=_required("GOOGLE_SHEET_ID"),
             google_worksheet_name=os.getenv("GOOGLE_WORKSHEET_NAME", "*"),
-            report_title=os.getenv("REPORT_TITLE", "Daily PhotoZoom Analytics"),
+            report_title=os.getenv("REPORT_TITLE", "Ракета Челябинск"),
             timezone=os.getenv("REPORT_TIMEZONE", "Asia/Yekaterinburg"),
             send_time=os.getenv("REPORT_SEND_TIME", "22:00"),
             telegram_chat_id=default_chat_id or None,

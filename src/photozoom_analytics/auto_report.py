@@ -29,10 +29,40 @@ PRODUCT_COLUMNS = [
     "Коллаж А4(БЕЗ РАМКИ )",
     "фото за 200",
     "эл.фото за 300",
-    "Брел0ки",
+    "Цветные магниты",
+    "Брелки",
     "Фотосессия",
     "КОЛЛАЖ А5",
 ]
+
+PRODUCT_UNIT_COSTS = {
+    "Магнит 7х10": 19.0,
+    "Рамка 15х20": 175.0,
+    "Ел.Игрушка": 135.0,
+    "Фото 15х20": 3.0,
+    "Кружка": 70.0,
+    "Расходник (пачка бумаги)": 550.0,
+    "фото за 100": 1.0,
+    "эл.фото": 1.0,
+    "Фото 10х15": 1.5,
+    "Фото А4": 6.0,
+    "Магнит 10х15": 54.0,
+    "Подарочные магниты": 19.0,
+    "Брелки": 28.0,
+    "Брел0ки": 28.0,
+    "Рамка А4": 245.0,
+    "Водная": 210.0,
+    "Стикеры": 6.0,
+    "Полароид": 1.0,
+    "Деревянная рамка": 98.0,
+    "Фотобудка": 2.0,
+    "Коллаж А4(БЕЗ РАМКИ )": 6.0,
+    "фото за 200": 1.0,
+    "эл.фото за 300": 1.0,
+    "Цветные магниты": 23.0,
+    "Фотосессия": 1200.0,
+    "КОЛЛАЖ А5": 3.0,
+}
 
 
 def render_auto_report(
@@ -189,40 +219,19 @@ def _salary_row_has_data(row: pd.Series) -> bool:
 
 def _product_totals(df: pd.DataFrame) -> dict[str, float]:
     totals = {}
-    for column in PRODUCT_COLUMNS:
+    for column in set(PRODUCT_COLUMNS) | set(PRODUCT_UNIT_COSTS):
         if column in df:
             totals[column] = _sum(df, column)
     return totals
 
 
 def _sales_product_columns(sheet: pd.DataFrame) -> list[str]:
-    return [column for column in sheet.columns if column in PRODUCT_COLUMNS]
+    product_names = set(PRODUCT_COLUMNS) | set(PRODUCT_UNIT_COSTS)
+    return [column for column in sheet.columns if column in product_names]
 
 
-def _product_unit_costs(df: pd.DataFrame) -> dict[str, float]:
-    sheet = df[df["worksheet"] == "таблица продаж"].copy()
-    if sheet.empty:
-        return {}
-
-    product_columns = [column for column in PRODUCT_COLUMNS if column in sheet]
-    numeric_rows = []
-    for _, row in sheet.iterrows():
-        values = {column: _parse_number(row.get(column, 0)) for column in product_columns}
-        if sum(1 for value in values.values() if value > 0) >= 2:
-            numeric_rows.append(values)
-
-    if len(numeric_rows) < 2:
-        return {}
-
-    quantities = numeric_rows[-2]
-    costs = numeric_rows[-1]
-    unit_costs = {}
-    for column in product_columns:
-        quantity = quantities.get(column, 0)
-        cost = costs.get(column, 0)
-        if quantity > 0 and cost > 0:
-            unit_costs[column] = cost / quantity
-    return unit_costs
+def _product_unit_costs(_df: pd.DataFrame) -> dict[str, float]:
+    return PRODUCT_UNIT_COSTS.copy()
 
 
 def _daily_revenue(df: pd.DataFrame, report_date: date) -> float:
