@@ -33,6 +33,7 @@ PRODUCT_COLUMNS = [
     "Брелки",
     "Фотосессия",
     "КОЛЛАЖ А5",
+    "Календарь",
 ]
 
 PRODUCT_UNIT_COSTS = {
@@ -62,6 +63,13 @@ PRODUCT_UNIT_COSTS = {
     "Цветные магниты": 23.0,
     "Фотосессия": 1200.0,
     "КОЛЛАЖ А5": 3.0,
+}
+
+PRODUCT_COLUMN_ALIASES = {
+    "Водная рамка": "Водная",
+    "Коллаж А4": "Коллаж А4(БЕЗ РАМКИ )",
+    "Коллаж А5": "КОЛЛАЖ А5",
+    "Деревянные магниты": "Деревянная рамка",
 }
 
 
@@ -219,15 +227,36 @@ def _salary_row_has_data(row: pd.Series) -> bool:
 
 def _product_totals(df: pd.DataFrame) -> dict[str, float]:
     totals = {}
-    for column in set(PRODUCT_COLUMNS) | set(PRODUCT_UNIT_COSTS):
+    for column in _product_source_columns():
         if column in df:
-            totals[column] = _sum(df, column)
+            product_name = _canonical_product_column(column)
+            totals[product_name] = totals.get(product_name, 0.0) + _sum(df, column)
     return totals
 
 
 def _sales_product_columns(sheet: pd.DataFrame) -> list[str]:
-    product_names = set(PRODUCT_COLUMNS) | set(PRODUCT_UNIT_COSTS)
-    return [column for column in sheet.columns if column in product_names]
+    product_names = _product_source_columns()
+    result = []
+    seen = set()
+    for column in sheet.columns:
+        if column not in product_names:
+            continue
+
+        product_name = _canonical_product_column(column)
+        if product_name in seen:
+            continue
+
+        result.append(product_name)
+        seen.add(product_name)
+    return result
+
+
+def _product_source_columns() -> set[str]:
+    return set(PRODUCT_COLUMNS) | set(PRODUCT_UNIT_COSTS) | set(PRODUCT_COLUMN_ALIASES)
+
+
+def _canonical_product_column(column: str) -> str:
+    return PRODUCT_COLUMN_ALIASES.get(column, column)
 
 
 def _product_unit_costs(_df: pd.DataFrame) -> dict[str, float]:
